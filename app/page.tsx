@@ -299,7 +299,7 @@ export default function Home() {
         {/* NAVIGATION */}
         <header className="topbar">
           <a href="#top" className="wordmark" aria-label="Bilal home">
-            BK<span>.</span>
+            BILAL NADEEM KHAN<span>.</span>
           </a>
 
           <nav className="desktop-nav" aria-label="Primary navigation">
@@ -479,7 +479,7 @@ export default function Home() {
             </motion.div>
 
             <motion.div className="signature-row" {...reveal(2)}>
-              <span className="signature">Bilal.</span>
+              <span className="signature">Bilal Nadeem Khan.</span>
               <span className="signature-caption">
                 ENGINEERING THE NEXT ITERATION
                 <br />
@@ -889,7 +889,7 @@ export default function Home() {
         {/* FOOTER */}
         <footer className="footer">
           <a href="#top" className="footer-logo">
-            BK.
+            BILAL NADEEM KHAN.
           </a>
 
           <span>
