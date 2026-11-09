@@ -601,10 +601,8 @@
   height: 100%;
 }
 
-#main-content > .topbar,
 #main-content > section,
-#main-content > footer,
-#main-content > .mobile-panel {
+#main-content > footer {
   position: relative;
   z-index: 1;
 }
@@ -1492,4 +1490,88 @@
   .human-keeper {
     transition-duration: .01ms !important;
   }
+}
+
+/* ==========================================
+   MOBILE FIXES
+========================================== */
+
+.wordmark,
+.footer-logo {
+  white-space: nowrap;
+}
+
+@media (max-width: 650px) {
+  /* header: stays reachable while scrolling (delete the next line if you want it to scroll away) */
+  .topbar { position: sticky; top: 0; z-index: 40; }
+  .wordmark { font-size: 23px; letter-spacing: -1.2px; line-height: 1; }
+  .mobile-menu {
+    min-width: 44px; min-height: 44px;
+    display: grid; place-items: center;
+    padding: 0; margin-right: -8px;
+  }
+
+  /* menu floats over the page instead of pushing it */
+  .mobile-panel {
+    position: fixed; top: 65px; left: 0; right: 0; z-index: 39;
+    max-height: calc(100svh - 65px); overflow-y: auto;
+    box-shadow: 0 18px 40px #17171422;
+  }
+  .mobile-panel a { min-height: 48px; }
+  .mobile-panel button { min-height: 44px; min-width: 44px; }
+
+  /* readable type: nothing below 10px */
+  .hero-meta, .hero-foot, .eyebrow, .section-index, .project-no, .project-type,
+  .feature-top, .feature-type, .tag-row span, .work-footnote, .small-note,
+  .skill-index, .skill-group h3, .timeline-date, .timeline-place,
+  .timeline-count, .contact-top > span, .email-link, .footer,
+  .terminal-bar, .terminal-status, .terminal-hint, .signature-caption {
+    font-size: 10px;
+    letter-spacing: 0.07em;
+  }
+  .hero-meta { flex-wrap: wrap; gap: 6px 16px; }
+
+  .hero-bottom p { font-size: 14px; color: #4d4c45; }
+  .intro-columns p { font-size: 13.5px; color: #55544d; }
+  .feature-info > p { font-size: 13px; }
+  .feature-detail { font-size: 12.5px; color: #4f5348; }
+  .timeline-content p { font-size: 12px; color: #55544d; }
+  .timeline-item { grid-template-columns: 13px 92px 1fr 18px; }
+  .contact-bottom p { font-size: 13px; }
+
+  /* contrast on light sections */
+  .hero-meta, .hero-foot, .eyebrow, .signature-caption, .small-note,
+  .skill-index, .skill-group h3, .timeline-date, .timeline-place,
+  .timeline-count, .terminal-hint { color: #4d4c45; }
+
+  /* contrast on dark sections */
+  .work .section-index, .work .project-no, .work .project-type,
+  .work .section-heading > p, .work-footnote { color: #c4c5ba; }
+  .contact .eyebrow, .contact-top > span, .contact-bottom p { color: #cfd0c4; }
+  .terminal-bar, .terminal-status { color: #b9bdae; }
+
+  /* terminal: readable, and no iOS zoom-on-focus (needs 16px inputs) */
+  .terminal-body { font-size: 11.5px; }
+  .term-form label { font-size: 11.5px; }
+  .term-form input { font-size: 16px; }
+
+  /* headline: less crushed */
+  .hero h1 { letter-spacing: -0.06em; line-height: 0.95; }
+
+  /* orb: more present, and never hijacks scrolling */
+  .hero-art {
+    width: 84vw; height: 84vw;
+    right: -26vw; top: 27%;
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  /* footer: logo gets its own row */
+  .footer { grid-template-columns: 1fr auto; }
+  .footer-logo { grid-column: 1 / -1; font-size: 22px; letter-spacing: -1px; }
+  .footer > span { grid-column: 1 / -1; text-align: left; }
+}
+
+@media (max-width: 380px) {
+  .wordmark { font-size: 20px; }
 }
