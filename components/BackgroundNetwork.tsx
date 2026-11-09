@@ -19,6 +19,24 @@ const PARALLAX = 0.9; // 1 = glued to content, lower = more depth
 const CULL = 80;
 const DENSITY = 22000; // px² per node, lower = denser
 const POINTER_R = 170;
+const TOUCH_R = 210;
+
+// accepts "#171714", "#abc" or "23 23 20" / "23,23,20"
+const toRgb = (v: string): string | null => {
+  const s = v.trim();
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(s);
+  if (m) {
+    let h = m[1];
+    if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+    const n = parseInt(h, 16);
+    return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+  }
+  const parts = s.split(/[\s,]+/).map(Number);
+  if (parts.length === 3 && parts.every((n) => Number.isFinite(n))) {
+    return parts.join(",");
+  }
+  return null;
+};
 
 export default function BackgroundNetwork() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -45,11 +63,13 @@ export default function BackgroundNetwork() {
     let adj: number[][] = [];
     let signals: Signal[] = [];
     let debounce = 0;
-        // ink colour follows the theme (--ink as "r g b"), with a safe default
-    let ink = "28,28,30";
+    let touchTimer = 0;
+
+    // ink colour follows the theme (--ink), with a safe default
+    let ink = "23,23,20";
     const readInk = () => {
-      const v = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim();
-      ink = v ? v.split(/[\s,]+/).join(",") : "28,28,30";
+      const v = getComputedStyle(document.documentElement).getPropertyValue("--ink");
+      ink = toRgb(v) ?? "23,23,20";
     };
     readInk();
     const themeObs = new MutationObserver(() => {
@@ -61,17 +81,41 @@ export default function BackgroundNetwork() {
       attributeFilter: ["data-theme"],
     });
 
-    // cursor
-    const fine = window.matchMedia("(pointer: fine)").matches;
-    const ptr = { x: -9999, y: -9999, active: false, lastSpawn: 0 };
+    // pointer + touch
+    const ptr = { x: -9999, y: -9999, active: false, lastSpawn: 0, touch: false, burst: 0 };
     const onPointer = (e: PointerEvent) => {
-      if (e.pointerType === "touch") return;
+      if (e.pointerType === "touch") return; // touch handled below
       ptr.x = e.clientX;
       ptr.y = e.clientY;
       ptr.active = true;
+      ptr.touch = false;
     };
     const onLeave = () => {
-      ptr.active = false;
+      if (!ptr.touch) ptr.active = false;
+    };
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!t) return;
+      window.clearTimeout(touchTimer);
+      ptr.x = t.clientX;
+      ptr.y = t.clientY;
+      ptr.active = true;
+      ptr.touch = true;
+      ptr.burst = 1;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!t) return;
+      ptr.x = t.clientX;
+      ptr.y = t.clientY;
+    };
+    const onTouchEnd = () => {
+      ptr.burst = 0;
+      window.clearTimeout(touchTimer);
+      touchTimer = window.setTimeout(() => {
+        ptr.active = false;
+        ptr.touch = false;
+      }, 700);
     };
 
     const docHeight = () =>
@@ -179,6 +223,9 @@ export default function BackgroundNetwork() {
       const sy = window.scrollY * PARALLAX;
       const top = sy - CULL;
       const bot = sy + vh + CULL;
+      const small = vw < 700;
+      const edgeBoost = small ? 1.55 : 1;
+      const nodeBase = small ? 0.34 : 0.22;
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
@@ -191,12 +238,14 @@ export default function BackgroundNetwork() {
           n.pulse = Math.max(0, n.pulse - dt * 0.0015);
         }
       }
-            // cursor interaction (fine pointers only, never in reduced-motion mode)
-      if (animate && fine && ptr.active) {
+
+      // finger / cursor interaction
+      if (animate && ptr.active) {
+        const R = ptr.touch ? TOUCH_R : POINTER_R;
         const wx = ptr.x;
         const wy = ptr.y + sy;
         let nearest = -1;
-        let nearestD = POINTER_R;
+        let nearestD = R;
         ctx.lineWidth = 1;
         for (let i = 0; i < nodes.length; i++) {
           const n = nodes[i];
@@ -204,12 +253,12 @@ export default function BackgroundNetwork() {
           const dx = wx - n.x;
           const dy = wy - n.y;
           const d = Math.hypot(dx, dy);
-          if (d >= POINTER_R) continue;
-          const k = 1 - d / POINTER_R;
+          if (d >= R) continue;
+          const k = 1 - d / R;
           n.x += dx * k * k * 0.1;
           n.y += dy * k * k * 0.1;
           n.pulse = Math.max(n.pulse, k * 0.85);
-          ctx.strokeStyle = `rgba(110,170,225,${k * 0.35})`;
+          ctx.strokeStyle = `rgba(110,170,225,${k * 0.4})`;
           ctx.beginPath();
           ctx.moveTo(wx, wy);
           ctx.lineTo(n.x, n.y);
@@ -219,20 +268,25 @@ export default function BackgroundNetwork() {
             nearest = i;
           }
         }
-        if (
-          nearest >= 0 &&
-          adj[nearest].length &&
-          now - ptr.lastSpawn > 450 &&
-          signals.length < 24
-        ) {
-          ptr.lastSpawn = now;
-          signals.push({
-            from: nearest,
-            to: adj[nearest][Math.floor(Math.random() * adj[nearest].length)],
-            t: 0,
-            speed: 0.9,
-            hops: 0,
-          });
+        if (nearest >= 0 && adj[nearest].length) {
+          if (ptr.burst > 0) {
+            // a tap fires a burst of signals
+            ptr.burst = 0;
+            const pool = [...adj[nearest]];
+            for (let b = 0; b < 3 && pool.length; b++) {
+              const j = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+              signals.push({ from: nearest, to: j, t: 0, speed: 1.1, hops: 0 });
+            }
+          } else if (now - ptr.lastSpawn > 450 && signals.length < 24) {
+            ptr.lastSpawn = now;
+            signals.push({
+              from: nearest,
+              to: adj[nearest][Math.floor(Math.random() * adj[nearest].length)],
+              t: 0,
+              speed: 0.9,
+              hops: 0,
+            });
+          }
         }
       }
 
@@ -242,7 +296,7 @@ export default function BackgroundNetwork() {
         const a = nodes[e.a];
         const b = nodes[e.b];
         if ((a.y < top && b.y < top) || (a.y > bot && b.y > bot)) continue;
-        ctx.strokeStyle = `rgba(${ink},${e.alpha})`;
+        ctx.strokeStyle = `rgba(${ink},${e.alpha * edgeBoost})`;
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
@@ -252,7 +306,7 @@ export default function BackgroundNetwork() {
       // nodes
       for (const n of nodes) {
         if (n.y < top || n.y > bot) continue;
-        ctx.fillStyle = `rgba(${ink},${0.22 + n.pulse * 0.4})`;
+        ctx.fillStyle = `rgba(${ink},${nodeBase + n.pulse * 0.4})`;
         ctx.beginPath();
         ctx.arc(n.x, n.y, 1.6 + n.pulse * 2.2, 0, Math.PI * 2);
         ctx.fill();
@@ -304,7 +358,7 @@ export default function BackgroundNetwork() {
 
         const grad = ctx.createLinearGradient(tx, ty, x, y);
         grad.addColorStop(0, "rgba(110,170,225,0)");
-        grad.addColorStop(1, "rgba(110,170,225,0.75)");
+        grad.addColorStop(1, "rgba(110,170,225,0.8)");
         ctx.strokeStyle = grad;
         ctx.lineWidth = 1.6;
         ctx.beginPath();
@@ -371,21 +425,30 @@ export default function BackgroundNetwork() {
     ro.observe(document.body);
 
     window.addEventListener("resize", onResize);
-    window.addEventListener("pointermove", onPointer, { passive: true });
-    document.addEventListener("mouseleave", onLeave);
     window.addEventListener("scroll", drawStatic, { passive: true }); // only matters when reduced motion
+    window.addEventListener("pointermove", onPointer, { passive: true });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    document.addEventListener("mouseleave", onLeave);
     document.addEventListener("visibilitychange", start);
     mq.addEventListener("change", onMotionChange);
 
     return () => {
       cancelAnimationFrame(raf);
       window.clearTimeout(debounce);
+      window.clearTimeout(touchTimer);
       ro.disconnect();
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("pointermove", onPointer);
-      document.removeEventListener("mouseleave", onLeave);
       themeObs.disconnect();
+      window.removeEventListener("resize", onResize);
       window.removeEventListener("scroll", drawStatic);
+      window.removeEventListener("pointermove", onPointer);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchcancel", onTouchEnd);
+      document.removeEventListener("mouseleave", onLeave);
       document.removeEventListener("visibilitychange", start);
       mq.removeEventListener("change", onMotionChange);
     };

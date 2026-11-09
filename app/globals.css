@@ -168,3 +168,11 @@
 @media (max-width: 380px) {
   .wordmark { font-size: 20px; }
 }
+
+/* ==========================================
+   MOBILE FIXES 2
+========================================== */
+@media (max-width: 650px) {
+  .hero-art { pointer-events: auto; } /* lets the orb be dragged */
+  .footer { padding-bottom: calc(104px + env(safe-area-inset-bottom)); } /* room for the action bar */
+}

@@ -21,6 +21,7 @@ import {
   Mail,
   Menu,
   X,
+  type LucideIcon,
 } from 'lucide-react';
 
 import Terminal from '@/components/Terminal';
@@ -31,7 +32,9 @@ import BootScreen from '@/components/BootScreen';
 import CommandPalette from '@/components/CommandPalette';
 import SoundToggle from '@/components/SoundToggle';
 import CaseStudyDrawer from '@/components/CaseStudyDrawer';
+import MobileActionBar from '@/components/MobileActionBar';
 import { projects } from '@/lib/projects';
+import { buzz, installHaptics } from '@/lib/haptics';
 
 const NeuralScene = dynamic(() => import('@/components/NeuralScene'), {
   ssr: false,
@@ -110,7 +113,7 @@ type ContactRow = {
   label: string;
   value: string;
   href: string;
-  icon: ReactNode;
+  Icon: LucideIcon;
   external?: boolean;
   download?: boolean;
 };
@@ -121,6 +124,18 @@ const prettyUrl = (u: string) =>
 const rowBorder = {
   borderColor: 'color-mix(in srgb, currentColor 20%, transparent)',
 };
+
+// scroll-reveal props, spread onto any motion element
+const reveal = (i = 0) => ({
+  initial: { opacity: 0, y: 26 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, amount: 0.2 },
+  transition: {
+    duration: 0.65,
+    delay: Math.min(i * 0.07, 0.3),
+    ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+  },
+});
 
 function Eyebrow({ children }: { children: ReactNode }) {
   return (
@@ -141,11 +156,11 @@ function SectionHeading({
   note?: string;
 }) {
   return (
-    <div className="section-heading">
+    <motion.div className="section-heading" {...reveal()}>
       <span className="section-index">{index} / 07</span>
       <h2>{title}</h2>
       {note && <p>{note}</p>}
-    </div>
+    </motion.div>
   );
 }
 
@@ -156,6 +171,7 @@ export default function Home() {
   const [time, setTime] = useState('');
   const [ready, setReady] = useState(false);
   const [caseOpen, setCaseOpen] = useState(false);
+  const [coarse, setCoarse] = useState(false);
 
   const contactEmail = process.env.NEXT_PUBLIC_CONTACT_EMAIL;
   const githubUrl = process.env.NEXT_PUBLIC_GITHUB_URL;
@@ -195,13 +211,29 @@ export default function Home() {
     return () => window.clearInterval(id);
   }, []);
 
+  // touch devices: enable haptics + card swiping
+  useEffect(() => {
+    installHaptics();
+    const mq = window.matchMedia('(pointer: coarse)');
+    const update = () => setCoarse(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
   const closeMenu = () => setMenuOpen(false);
+
+  const goProject = (dir: number) => {
+    setActiveProject((i) => (i + dir + projects.length) % projects.length);
+    buzz(10);
+  };
 
   const copyEmail = async () => {
     if (!contactEmail) return;
     try {
       await navigator.clipboard.writeText(contactEmail);
       setCopied(true);
+      buzz(12);
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
       /* clipboard unavailable: the mailto link still works */
@@ -214,7 +246,7 @@ export default function Home() {
       label: 'EMAIL',
       value: contactEmail,
       href: `mailto:${contactEmail}`,
-      icon: <Mail size={18} />,
+      Icon: Mail,
     });
   }
   if (linkedinUrl) {
@@ -223,7 +255,7 @@ export default function Home() {
       value: prettyUrl(linkedinUrl),
       href: linkedinUrl,
       external: true,
-      icon: <Linkedin size={18} />,
+      Icon: Linkedin,
     });
   }
   if (githubUrl) {
@@ -232,7 +264,7 @@ export default function Home() {
       value: prettyUrl(githubUrl),
       href: githubUrl,
       external: true,
-      icon: <Github size={18} />,
+      Icon: Github,
     });
   }
   if (resumeUrl) {
@@ -241,7 +273,7 @@ export default function Home() {
       value: 'Download PDF',
       href: resumeUrl,
       download: true,
-      icon: <Download size={18} />,
+      Icon: Download,
     });
   }
 
@@ -256,6 +288,7 @@ export default function Home() {
           linkedin={linkedinUrl}
           resume={resumeUrl}
         />
+        <MobileActionBar suppress={menuOpen} />
 
         <a className="skip-link" href="#about">
           Skip to content
@@ -266,7 +299,7 @@ export default function Home() {
         {/* NAVIGATION */}
         <header className="topbar">
           <a href="#top" className="wordmark" aria-label="Bilal home">
-            BILAL NADEEM KHAN<span>.</span>
+            BK<span>.</span>
           </a>
 
           <nav className="desktop-nav" aria-label="Primary navigation">
@@ -383,7 +416,7 @@ export default function Home() {
 
             <div className="hero-bottom">
               <p>
-                I’m Bilal Nadeem Khan — exploring the space between machine intelligence,
+                I’m Bilal — exploring the space between machine intelligence,
                 thoughtful engineering and products that solve real problems.
               </p>
 
@@ -422,13 +455,13 @@ export default function Home() {
           </div>
 
           <div className="intro-main">
-            <p className="intro-lead">
+            <motion.p className="intro-lead" {...reveal()}>
               I’m not here to collect buzzwords. I’m here to{' '}
               <em>understand how things work</em> — and then make something
               useful with that understanding.
-            </p>
+            </motion.p>
 
-            <div className="intro-columns">
+            <motion.div className="intro-columns" {...reveal(1)}>
               <p>
                 Currently pursuing a B.E. in Artificial Intelligence & Machine
                 Learning at AMC Engineering College, Bengaluru. My interests
@@ -443,16 +476,16 @@ export default function Home() {
                 intelligent systems from concept to something people can
                 actually use.
               </p>
-            </div>
+            </motion.div>
 
-            <div className="signature-row">
-              <span className="signature">Bilal Nadeem Khan.</span>
+            <motion.div className="signature-row" {...reveal(2)}>
+              <span className="signature">Bilal.</span>
               <span className="signature-caption">
                 ENGINEERING THE NEXT ITERATION
                 <br />
                 ONE BUILD AT A TIME.
               </span>
-            </div>
+            </motion.div>
           </div>
         </section>
 
@@ -465,7 +498,7 @@ export default function Home() {
           />
 
           <div className="project-layout">
-            <div className="project-list">
+            <motion.div className="project-list" {...reveal()}>
               {projects.map((p, i) => (
                 <button
                   key={p.n}
@@ -485,7 +518,7 @@ export default function Home() {
                   <ArrowUpRight className="project-arrow" size={19} />
                 </button>
               ))}
-            </div>
+            </motion.div>
 
             <AnimatePresence mode="wait">
               <motion.article
@@ -497,6 +530,13 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.28 }}
+                drag={coarse ? 'x' : false}
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.25}
+                onDragEnd={(_, info) => {
+                  if (info.offset.x < -60 || info.velocity.x < -500) goProject(1);
+                  else if (info.offset.x > 60 || info.velocity.x > 500) goProject(-1);
+                }}
               >
                 <div className="feature-top">
                   <span>
@@ -547,6 +587,35 @@ export default function Home() {
             </AnimatePresence>
           </div>
 
+          {/* swipe dots (phones) */}
+          <div className="mt-6 hidden items-center justify-between max-[650px]:flex">
+            <div className="flex items-center">
+              {projects.map((p, i) => (
+                <button
+                  key={p.n}
+                  type="button"
+                  aria-label={`Show project ${p.n}: ${p.title}`}
+                  aria-current={activeProject === i}
+                  onClick={() => setActiveProject(i)}
+                  className="grid h-8 w-8 place-items-center"
+                >
+                  <span
+                    className="block rounded-full transition-all"
+                    style={{
+                      height: 8,
+                      width: activeProject === i ? 22 : 8,
+                      background: 'currentColor',
+                      opacity: activeProject === i ? 1 : 0.35,
+                    }}
+                  />
+                </button>
+              ))}
+            </div>
+            <span className="font-mono text-[10px] uppercase tracking-[0.1em] opacity-60">
+              Swipe the card ← →
+            </span>
+          </div>
+
           <CaseStudyDrawer
             project={projects[activeProject]}
             open={caseOpen}
@@ -569,7 +638,7 @@ export default function Home() {
           />
 
           <div className="capability-body">
-            <div className="capability-statement">
+            <motion.div className="capability-statement" {...reveal()}>
               <span className="big-asterisk">✳</span>
               <p>
                 Technical depth comes from knowing <em>when</em> to use a tool
@@ -578,11 +647,15 @@ export default function Home() {
               <span className="small-note">
                 CURRENTLY LEARNING, ALWAYS ITERATING.
               </span>
-            </div>
+            </motion.div>
 
             <div className="skill-groups">
               {skills.map((g, i) => (
-                <div className="skill-group" key={g.group}>
+                <motion.div
+                  className="skill-group"
+                  key={g.group}
+                  {...reveal(i)}
+                >
                   <span className="skill-index">0{i + 1}</span>
 
                   <div>
@@ -593,7 +666,7 @@ export default function Home() {
                       ))}
                     </div>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>
@@ -601,7 +674,7 @@ export default function Home() {
 
         {/* TERMINAL */}
         <section className="terminal-section section-pad" id="terminal">
-          <div className="terminal-intro">
+          <motion.div className="terminal-intro" {...reveal()}>
             <Eyebrow>A MORE DIRECT ROUTE</Eyebrow>
 
             <h2>
@@ -618,7 +691,7 @@ export default function Home() {
             <span className="terminal-hint">
               <Command size={13} /> TRY <b>help</b> TO BEGIN
             </span>
-          </div>
+          </motion.div>
 
           <Terminal />
         </section>
@@ -672,24 +745,28 @@ export default function Home() {
 
         {/* CONTACT */}
         <section className="contact section-pad" id="contact">
-          <div className="contact-top">
+          <motion.div className="contact-top" {...reveal()}>
             <Eyebrow>07 / OPEN CHANNEL</Eyebrow>
             <span>HAVE A GOOD QUESTION? EVEN BETTER.</span>
-          </div>
+          </motion.div>
 
-          <h2>
+          <motion.h2 {...reveal(1)}>
             Let’s make
             <br />
             <em>something matter.</em>
-          </h2>
+          </motion.h2>
 
           <p className="mt-6 max-w-xl">
             For opportunities, collaborations, thoughtful conversations or
             interesting problems.
           </p>
 
+          {/* DESKTOP / TABLET: rows */}
           {contactRows.length > 0 && (
-            <ul className="relative z-10 mt-10 border-t" style={rowBorder}>
+            <ul
+              className="relative z-10 mt-10 border-t max-[650px]:hidden"
+              style={rowBorder}
+            >
               {contactRows.map((row) => (
                 <li
                   key={row.label}
@@ -705,7 +782,7 @@ export default function Home() {
                     className="group flex min-w-0 flex-1 items-center gap-4 py-5 md:gap-8"
                   >
                     <span className="flex w-28 shrink-0 items-center gap-2 font-mono text-[11px] tracking-[0.16em] opacity-60 md:w-36">
-                      {row.icon}
+                      <row.Icon size={18} />
                       {row.label}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-[clamp(1.05rem,2.6vw,2rem)]">
@@ -738,6 +815,63 @@ export default function Home() {
             </ul>
           )}
 
+          {/* PHONES: icon buttons */}
+          {contactRows.length > 0 && (
+            <div className="relative z-10 mt-10 hidden max-[650px]:block">
+              <ul className="flex flex-wrap gap-x-5 gap-y-6">
+                {contactRows.map((row) => (
+                  <li key={row.label}>
+                    <a
+                      href={row.href}
+                      {...(row.external
+                        ? { target: '_blank', rel: 'noreferrer' }
+                        : {})}
+                      {...(row.download ? { download: true } : {})}
+                      aria-label={
+                        row.label === 'RESUME'
+                          ? 'Download resume'
+                          : row.label === 'EMAIL'
+                          ? 'Send an email'
+                          : `Open ${row.label.toLowerCase()}`
+                      }
+                      className="flex flex-col items-center gap-2"
+                    >
+                      <span
+                        className="grid h-16 w-16 place-items-center rounded-full border"
+                        style={rowBorder}
+                      >
+                        <row.Icon size={26} />
+                      </span>
+                      <span className="font-mono text-[10px] uppercase tracking-[0.14em] opacity-70">
+                        {row.label}
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+
+              {contactEmail && (
+                <div
+                  className="mt-8 flex items-center justify-between gap-3 rounded-[14px] border px-4 py-3"
+                  style={rowBorder}
+                >
+                  <span className="min-w-0 break-all text-[14px] leading-snug">
+                    {contactEmail}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={copyEmail}
+                    aria-label={copied ? 'Email copied' : 'Copy email address'}
+                    className="grid h-10 w-10 shrink-0 place-items-center rounded-full border"
+                    style={rowBorder}
+                  >
+                    {copied ? <Check size={16} /> : <Copy size={16} />}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {contactRows.length === 0 &&
             process.env.NODE_ENV !== 'production' && (
               <p className="mt-8 font-mono text-[12px] opacity-70">
@@ -755,11 +889,11 @@ export default function Home() {
         {/* FOOTER */}
         <footer className="footer">
           <a href="#top" className="footer-logo">
-            BILAL NADEEM KHAN.
+            BK.
           </a>
 
           <span>
-            © {new Date().getFullYear()} Bilal Nadeem Khan. BUILT WITH INTENTION.
+            © {new Date().getFullYear()} BILAL. BUILT WITH INTENTION.
           </span>
 
           <div className="socials">
